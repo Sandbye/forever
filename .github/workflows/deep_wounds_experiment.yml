@@ -22,17 +22,17 @@ jobs:
               run: go test --tags=with_db ./sim/warrior -count=1
             - name: Prepare clean rotations
               run: python3 tools/deep_wounds_experiment/prepare.py
-            - name: Prepare and validate complete talent builds
-              run: python3 tools/deep_wounds_experiment/build_prepare.py
-            - name: Compare complete builds
+            - name: Prepare hypothetical Strength and Agility budgets
+              run: python3 tools/deep_wounds_experiment/stat_prepare.py
+            - name: Compare Strength and Agility tradeoffs
               env:
                   EXPERIMENT_SOURCE: ${{ github.sha }}
                   EXPERIMENT_REQUIRE_CLEAN_APL: '1'
-              run: go run --tags=with_db ./tools/deep_wounds_experiment experiment-build-inputs.json experiment-build-raw.json
-            - name: Summarize complete build results
-              run: python3 tools/deep_wounds_experiment/build_summarize.py
+              run: go run --tags=with_db ./tools/deep_wounds_experiment experiment-stat-inputs.json experiment-stat-raw.json
+            - name: Verify stat changes and summarize
+              run: python3 tools/deep_wounds_experiment/stat_summarize.py
             - name: Archive full inputs, preflight stats and results
               uses: actions/upload-artifact@v4
               with:
-                  name: deep-wounds-build-results
+                  name: deep-wounds-stat-results
                   path: experiment-*.json
