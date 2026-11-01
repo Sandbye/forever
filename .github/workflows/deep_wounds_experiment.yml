@@ -22,27 +22,26 @@ jobs:
               run: go test --tags=with_db ./sim/warrior -run '^TestDeepWoundsUsesTheCrittingHandWithoutAttackPower$' -count=1 -v
             - name: Check Warrior mechanics
               run: go test --tags=with_db ./sim/warrior -count=1
-            - name: Inspect current weapon candidates
-              run: python3 tools/deep_wounds_experiment/catalog.py
             - name: Prepare clean comparison rotations
               run: python3 tools/deep_wounds_experiment/prepare.py
-            - name: Run candidate comparisons
+            - name: Prepare weapon pairs from current data
+              run: python3 tools/deep_wounds_experiment/weapon_prepare.py
+            - name: Screen different weapon pairs
               env:
                   EXPERIMENT_SOURCE: ${{ github.sha }}
                   EXPERIMENT_REQUIRE_CLEAN_APL: '1'
-              run: go run --tags=with_db ./tools/deep_wounds_experiment experiment-clean-inputs.json experiment-candidate.json
-            - name: Run pinned baseline comparisons
-              run: |
-                  git worktree add "$RUNNER_TEMP/dw-baseline" 895cd67f99c7e030c3d893cc461007479b2df269
-                  cp -r sim/core/proto "$RUNNER_TEMP/dw-baseline/sim/core/"
-                  cp -r binary_dist "$RUNNER_TEMP/dw-baseline/"
-                  EXPERIMENT_ROOT="$GITHUB_WORKSPACE"
-                  cd "$RUNNER_TEMP/dw-baseline"
-                  EXPERIMENT_REQUIRE_CLEAN_APL=1 EXPERIMENT_SOURCE=895cd67f99c7e030c3d893cc461007479b2df269 go run --tags=with_db "$EXPERIMENT_ROOT/tools/deep_wounds_experiment/main.go" "$EXPERIMENT_ROOT/experiment-clean-inputs.json" "$EXPERIMENT_ROOT/experiment-baseline.json"
-            - name: Summarize paired comparisons
-              run: python3 tools/deep_wounds_experiment/summarize.py
-            - name: Archive requests, preflight stats and full results
+              run: go run --tags=with_db ./tools/deep_wounds_experiment experiment-weapon-inputs.json experiment-weapon-screen.json
+            - name: Select candidates for confirmation
+              run: python3 tools/deep_wounds_experiment/weapon_shortlist.py
+            - name: Confirm with more iterations and two durations
+              env:
+                  EXPERIMENT_SOURCE: ${{ github.sha }}
+                  EXPERIMENT_REQUIRE_CLEAN_APL: '1'
+              run: go run --tags=with_db ./tools/deep_wounds_experiment experiment-weapon-confirm-inputs.json experiment-weapon-confirm.json
+            - name: Summarize weapon results
+              run: python3 tools/deep_wounds_experiment/weapon_summarize.py
+            - name: Archive inputs, preflight stats and full results
               uses: actions/upload-artifact@v4
               with:
-                  name: deep-wounds-results
+                  name: deep-wounds-weapon-results
                   path: experiment-*.json
