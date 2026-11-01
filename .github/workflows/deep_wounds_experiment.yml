@@ -10,6 +10,8 @@ jobs:
         timeout-minutes: 30
         steps:
             - uses: actions/checkout@v5
+              with:
+                  fetch-depth: 0
             - uses: actions/setup-go@v6
               with:
                   go-version: 1.25.x
@@ -18,3 +20,24 @@ jobs:
             - run: make sim/core/proto/api.pb.go binary_dist/dist.go
             - name: Check hand contribution, AP and refresh timing
               run: go test --tags=with_db ./sim/warrior -run '^TestDeepWoundsUsesTheCrittingHandWithoutAttackPower$' -count=1 -v
+            - name: Check Warrior mechanics
+              run: go test --tags=with_db ./sim/warrior -count=1
+            - name: Run candidate comparisons
+              env:
+                  EXPERIMENT_SOURCE: ${{ github.sha }}
+              run: go run --tags=with_db ./tools/deep_wounds_experiment research/deep_wounds_inputs.json experiment-candidate.json
+            - name: Run pinned baseline comparisons
+              run: |
+                  git worktree add "$RUNNER_TEMP/dw-baseline" 895cd67f99c7e030c3d893cc461007479b2df269
+                  cp -r sim/core/proto "$RUNNER_TEMP/dw-baseline/sim/core/"
+                  cp -r binary_dist "$RUNNER_TEMP/dw-baseline/"
+                  EXPERIMENT_ROOT="$GITHUB_WORKSPACE"
+                  cd "$RUNNER_TEMP/dw-baseline"
+                  EXPERIMENT_SOURCE=895cd67f99c7e030c3d893cc461007479b2df269 go run --tags=with_db "$EXPERIMENT_ROOT/tools/deep_wounds_experiment/main.go" "$EXPERIMENT_ROOT/research/deep_wounds_inputs.json" "$EXPERIMENT_ROOT/experiment-baseline.json"
+            - name: Summarize paired comparisons
+              run: python3 tools/deep_wounds_experiment/summarize.py
+            - name: Archive requests, preflight stats and full results
+              uses: actions/upload-artifact@v4
+              with:
+                  name: deep-wounds-results
+                  path: experiment-*.json
