@@ -10,8 +10,6 @@ jobs:
         timeout-minutes: 30
         steps:
             - uses: actions/checkout@v5
-              with:
-                  fetch-depth: 0
             - uses: actions/setup-go@v6
               with:
                   go-version: 1.25.x
@@ -22,26 +20,19 @@ jobs:
               run: go test --tags=with_db ./sim/warrior -run '^TestDeepWoundsUsesTheCrittingHandWithoutAttackPower$' -count=1 -v
             - name: Check Warrior mechanics
               run: go test --tags=with_db ./sim/warrior -count=1
-            - name: Prepare clean comparison rotations
+            - name: Prepare clean rotations
               run: python3 tools/deep_wounds_experiment/prepare.py
-            - name: Prepare weapon pairs from current data
-              run: python3 tools/deep_wounds_experiment/weapon_prepare.py
-            - name: Screen different weapon pairs
+            - name: Prepare and validate complete talent builds
+              run: python3 tools/deep_wounds_experiment/build_prepare.py
+            - name: Compare complete builds
               env:
                   EXPERIMENT_SOURCE: ${{ github.sha }}
                   EXPERIMENT_REQUIRE_CLEAN_APL: '1'
-              run: go run --tags=with_db ./tools/deep_wounds_experiment experiment-weapon-inputs.json experiment-weapon-screen.json
-            - name: Select candidates for confirmation
-              run: python3 tools/deep_wounds_experiment/weapon_shortlist.py
-            - name: Confirm with more iterations and two durations
-              env:
-                  EXPERIMENT_SOURCE: ${{ github.sha }}
-                  EXPERIMENT_REQUIRE_CLEAN_APL: '1'
-              run: go run --tags=with_db ./tools/deep_wounds_experiment experiment-weapon-confirm-inputs.json experiment-weapon-confirm.json
-            - name: Summarize weapon results
-              run: python3 tools/deep_wounds_experiment/weapon_summarize.py
-            - name: Archive inputs, preflight stats and full results
+              run: go run --tags=with_db ./tools/deep_wounds_experiment experiment-build-inputs.json experiment-build-raw.json
+            - name: Summarize complete build results
+              run: python3 tools/deep_wounds_experiment/build_summarize.py
+            - name: Archive full inputs, preflight stats and results
               uses: actions/upload-artifact@v4
               with:
-                  name: deep-wounds-weapon-results
+                  name: deep-wounds-build-results
                   path: experiment-*.json
