@@ -37,8 +37,8 @@ func run() error {
 	if err := json.Unmarshal(data, &input); err != nil {
 		return err
 	}
-	if len(input.Cases) != 4 {
-		return fmt.Errorf("need four prepared cases, got %d", len(input.Cases))
+	if len(input.Cases) < 1 || len(input.Cases) > 200 {
+		return fmt.Errorf("need 1 to 200 prepared cases, got %d", len(input.Cases))
 	}
 	dps.RegisterDpsWarrior()
 	common.RegisterAllEffects()
@@ -52,6 +52,15 @@ func run() error {
 		statsJSON, err := protojson.Marshal(preflight)
 		if err != nil {
 			return err
+		}
+		if os.Getenv("EXPERIMENT_REQUIRE_CLEAN_APL") == "1" {
+			var value any
+			if err := json.Unmarshal(statsJSON, &value); err != nil {
+				return err
+			}
+			if warnings := rotationWarnings(value); len(warnings) > 0 {
+				return fmt.Errorf("%s: rotation warnings: %v", entry.Name, warnings)
+			}
 		}
 		result := core.RunRaidSim(request)
 		if result.Error != nil {
@@ -73,4 +82,22 @@ func run() error {
 		return err
 	}
 	return os.WriteFile(os.Args[2], bytes, 0644)
+}
+
+func rotationWarnings(value any) []string {
+	var warnings []string
+	switch node := value.(type) {
+	case map[string]any:
+		if message, ok := node["validation"].(string); ok && message != "" && (node["logLevel"] == "Warning" || node["logLevel"] == "Error") {
+			warnings = append(warnings, message)
+		}
+		for _, child := range node {
+			warnings = append(warnings, rotationWarnings(child)...)
+		}
+	case []any:
+		for _, child := range node {
+			warnings = append(warnings, rotationWarnings(child)...)
+		}
+	}
+	return warnings
 }

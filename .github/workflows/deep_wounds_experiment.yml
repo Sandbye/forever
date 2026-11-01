@@ -24,10 +24,13 @@ jobs:
               run: go test --tags=with_db ./sim/warrior -count=1
             - name: Inspect current weapon candidates
               run: python3 tools/deep_wounds_experiment/catalog.py
+            - name: Prepare clean comparison rotations
+              run: python3 tools/deep_wounds_experiment/prepare.py
             - name: Run candidate comparisons
               env:
                   EXPERIMENT_SOURCE: ${{ github.sha }}
-              run: go run --tags=with_db ./tools/deep_wounds_experiment tools/deep_wounds_experiment/test-fixtures/inputs.json experiment-candidate.json
+                  EXPERIMENT_REQUIRE_CLEAN_APL: '1'
+              run: go run --tags=with_db ./tools/deep_wounds_experiment experiment-clean-inputs.json experiment-candidate.json
             - name: Run pinned baseline comparisons
               run: |
                   git worktree add "$RUNNER_TEMP/dw-baseline" 895cd67f99c7e030c3d893cc461007479b2df269
@@ -35,7 +38,7 @@ jobs:
                   cp -r binary_dist "$RUNNER_TEMP/dw-baseline/"
                   EXPERIMENT_ROOT="$GITHUB_WORKSPACE"
                   cd "$RUNNER_TEMP/dw-baseline"
-                  EXPERIMENT_SOURCE=895cd67f99c7e030c3d893cc461007479b2df269 go run --tags=with_db "$EXPERIMENT_ROOT/tools/deep_wounds_experiment/main.go" "$EXPERIMENT_ROOT/tools/deep_wounds_experiment/test-fixtures/inputs.json" "$EXPERIMENT_ROOT/experiment-baseline.json"
+                  EXPERIMENT_REQUIRE_CLEAN_APL=1 EXPERIMENT_SOURCE=895cd67f99c7e030c3d893cc461007479b2df269 go run --tags=with_db "$EXPERIMENT_ROOT/tools/deep_wounds_experiment/main.go" "$EXPERIMENT_ROOT/experiment-clean-inputs.json" "$EXPERIMENT_ROOT/experiment-baseline.json"
             - name: Summarize paired comparisons
               run: python3 tools/deep_wounds_experiment/summarize.py
             - name: Archive requests, preflight stats and full results
