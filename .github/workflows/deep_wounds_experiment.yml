@@ -22,6 +22,8 @@ jobs:
               run: go test --tags=with_db ./sim/warrior -run '^TestDeepWoundsUsesTheCrittingHandWithoutAttackPower$' -count=1 -v
             - name: Check Warrior mechanics
               run: go test --tags=with_db ./sim/warrior -count=1
+            - name: Inspect current weapon candidates
+              run: python3 tools/deep_wounds_experiment/catalog.py
             - name: Run candidate comparisons
               env:
                   EXPERIMENT_SOURCE: ${{ github.sha }}
