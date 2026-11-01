@@ -1,0 +1,38 @@
+name: Deep Wounds experiment
+on:
+    push:
+        branches: [fix/warrior-deep-wounds-triggering-hand]
+permissions:
+    contents: read
+jobs:
+    mechanics:
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        steps:
+            - uses: actions/checkout@v5
+            - uses: actions/setup-go@v6
+              with:
+                  go-version: 1.25.x
+            - uses: ./.github/actions/setup-protoc
+            - run: go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+            - run: make sim/core/proto/api.pb.go binary_dist/dist.go
+            - name: Check hand contribution, AP and refresh timing
+              run: go test --tags=with_db ./sim/warrior -run '^TestDeepWoundsUsesTheCrittingHandWithoutAttackPower$' -count=1 -v
+            - name: Check Warrior mechanics
+              run: go test --tags=with_db ./sim/warrior -count=1
+            - name: Prepare clean rotations
+              run: python3 tools/deep_wounds_experiment/prepare.py
+            - name: Prepare hypothetical Strength and Agility budgets
+              run: python3 tools/deep_wounds_experiment/stat_prepare.py
+            - name: Compare Strength and Agility tradeoffs
+              env:
+                  EXPERIMENT_SOURCE: ${{ github.sha }}
+                  EXPERIMENT_REQUIRE_CLEAN_APL: '1'
+              run: go run --tags=with_db ./tools/deep_wounds_experiment experiment-stat-inputs.json experiment-stat-raw.json
+            - name: Verify stat changes and summarize
+              run: python3 tools/deep_wounds_experiment/stat_summarize.py
+            - name: Archive full inputs, preflight stats and results
+              uses: actions/upload-artifact@v4
+              with:
+                  name: deep-wounds-stat-results
+                  path: experiment-*.json

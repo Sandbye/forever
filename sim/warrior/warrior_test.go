@@ -822,3 +822,58 @@ func TestExplosiveDropsTheCleavePressInsideTheQueueDelay(t *testing.T) {
 		t.Error("Cleave could not be queued again after the throw")
 	}
 }
+
+func TestDeepWoundsUsesTheCrittingHandWithoutAttackPower(t *testing.T) {
+	for _, attack := range []string{"main-hand auto", "off-hand auto", "Hamstring"} {
+		t.Run(attack, func(t *testing.T) {
+			sim, war := orcWarriorSim(t, "prebis_fury", furyTalents)
+			target := war.CurrentTarget
+			war.AutoAttacks.MH().BaseDamageMin = 180
+			war.AutoAttacks.MH().BaseDamageMax = 220
+			war.AutoAttacks.OH().BaseDamageMin = 60
+			war.AutoAttacks.OH().BaseDamageMax = 100
+			trigger := war.GetAura("Deep Wounds - Trigger")
+			mh := war.AutoAttacks.MHAuto()
+			oh := war.AutoAttacks.OHAuto()
+			if mh == nil || oh == nil || trigger == nil || trigger.OnSpellHitDealt == nil || war.DeepWounds == nil {
+				t.Fatal("the fixture needs both auto attacks, Deep Wounds and its hit listener")
+			}
+			dot := war.DeepWounds.Dot(target)
+			crit := &core.SpellResult{Target: target, Outcome: core.OutcomeCrit, Damage: 1}
+			trigger.OnSpellHitDealt(trigger, sim, mh, crit)
+			baseline := dot.OutstandingDmg()
+			if baseline <= 0 {
+				t.Fatal("a main-hand crit needs a positive bleed pool")
+			}
+			dot.Deactivate(sim)
+			war.AddStatsDynamic(sim, stats.Stats{stats.AttackPower: 10000})
+			spell, want := mh, baseline
+			switch attack {
+			case "off-hand auto":
+				spell, want = oh, baseline*80/200
+			case "Hamstring":
+				spell = war.GetSpell(core.ActionID{SpellID: 11581})
+			}
+			if spell == nil {
+				t.Fatal("the fixture needs the selected attack")
+			}
+			trigger.OnSpellHitDealt(trigger, sim, spell, &core.SpellResult{Target: target, Outcome: core.OutcomeHit, Damage: 1})
+			if dot.IsActive() {
+				t.Fatal("a noncritical hit applied the bleed")
+			}
+			trigger.OnSpellHitDealt(trigger, sim, spell, crit)
+			if got := dot.OutstandingDmg(); got < want-1e-9 || got > want+1e-9 {
+				t.Fatalf("bleed pool with extra Attack Power is %v, want %v", got, want)
+			}
+			nextTick := dot.NextTickAt()
+			sim.CurrentTime = time.Second
+			trigger.OnSpellHitDealt(trigger, sim, spell, crit)
+			if got := dot.OutstandingDmg(); got < 2*want-1e-9 || got > 2*want+1e-9 {
+				t.Errorf("refresh pool is %v, want %v", got, 2*want)
+			}
+			if got := dot.NextTickAt(); got != nextTick {
+				t.Errorf("refresh moved the next tick to %v, want %v", got, nextTick)
+			}
+		})
+	}
+}

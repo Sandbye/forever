@@ -116,6 +116,7 @@ func (warrior *Warrior) registerDeepWounds() {
 		return
 	}
 
+	var triggeringHand core.ProcMask
 	share := spellData.DeepWounds.FractionAt(warrior.Talents.DeepWounds)
 	tick := deepWoundsBleed.EffectN(1)
 
@@ -145,11 +146,15 @@ func (warrior *Warrior) registerDeepWounds() {
 	// A crit while the bleed is up adds the unticked damage to the new application and spreads the sum
 	// over a full set of ticks; the ticks keep the first application's timer.
 	config.ApplyEffects = func(sim *core.Simulation, target *core.Unit, spell *core.Spell) {
+		weaponDamage := warrior.AutoAttacks.MH().AverageDamage()
+		if triggeringHand.Matches(core.ProcMaskMeleeOH) && !triggeringHand.Matches(core.ProcMaskMeleeMH) {
+			weaponDamage = warrior.AutoAttacks.OH().AverageDamage()
+		}
 		spell.CalcAndDealOutcome(sim, target, spell.OutcomeAlwaysHitNoHitCounter)
 		dot := spell.Dot(target)
-		// One application is the share of the main hand's average weapon damage, without Attack Power,
-		// whichever hand crit.
-		totalDamage := dot.OutstandingDmg() + warrior.AutoAttacks.MH().AverageDamage()*share
+		// The experimental hand rule uses the critting hand's average weapon damage without Attack Power.
+		// Off-hand damage penalties and Dual Wield Specialization are not included in this contribution.
+		totalDamage := dot.OutstandingDmg() + weaponDamage*share
 
 		if dot.IsActive() {
 			dot.DurationExtend(sim, deepWoundsBleed.Duration())
@@ -166,6 +171,9 @@ func (warrior *Warrior) registerDeepWounds() {
 	trigger := spelldata.ProcTrigger(&warrior.Character,
 		spellData.DeepWounds.Rank(warrior.Talents.DeepWounds),
 		func(sim *core.Simulation, spell *core.Spell, result *core.SpellResult) {
+			previousHand := triggeringHand
+			triggeringHand = spell.ProcMask
+			defer func() { triggeringHand = previousHand }()
 			warrior.DeepWounds.Cast(sim, result.Target)
 		})
 	trigger.Name = "Deep Wounds - Trigger"
