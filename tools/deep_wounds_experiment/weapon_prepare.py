@@ -2,7 +2,26 @@ import copy, json
 
 db = json.load(open("assets/database/db.json"))
 by_id = {item["id"]: item for item in db["items"]}
-wanted = [19168, 279259, 2244, 12939, 12940, 19166, 12590, 12783, 14555]
+def eligible(item, kind):
+    if item.get("weaponType") != kind or item.get("handType") not in (1,2,3): return False
+    if item.get("reqLvl",0) > 60 or item.get("factionRestriction") == 1: return False
+    if item.get("classAllowlist") and 1 not in item["classAllowlist"]: return False
+    if any("pvp" in s or s.get("drop",{}).get("difficulty") == 2 for s in item.get("sources",[])): return False
+    scaling=item.get("scalingOptions",{}).get("0",{})
+    return 50 <= scaling.get("ilvl",0) <= 70 and item.get("weaponSpeed",0) > 0 and scaling.get("weaponDamageMax",0) > 0
+
+def weapon_dps(item):
+    scaling=item["scalingOptions"]["0"]
+    return (scaling.get("weaponDamageMin",0)+scaling["weaponDamageMax"])/2/item["weaponSpeed"]
+
+wanted=[]
+for kind in (9,2):
+    ranked=sorted([item for item in db["items"] if eligible(item,kind)],key=lambda i:(-weapon_dps(i),i["id"]))
+    if len(ranked) < 3: raise ValueError(f"Not enough current candidates of weapon type {kind}")
+    chosen=ranked[:3]
+    fast=sorted([item for item in ranked if weapon_dps(item) >= weapon_dps(ranked[0])*0.8 and item["id"] not in [v["id"] for v in chosen]],key=lambda i:(i["weaponSpeed"],-weapon_dps(i),i["id"]))
+    if fast: chosen.append(fast[0])
+    wanted.extend(item["id"] for item in chosen)
 weapons = []
 for item_id in wanted + [22384, 12798]:
     if item_id not in by_id: raise ValueError(f"Requested item {item_id} is absent from the pinned Forever database")
