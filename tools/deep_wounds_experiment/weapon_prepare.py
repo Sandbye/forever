@@ -6,6 +6,7 @@ def eligible(item, kind):
     if item.get("weaponType") != kind or item.get("handType") not in (1,2,3): return False
     if item.get("reqLvl",0) > 60 or item.get("factionRestriction") == 1: return False
     if item.get("classAllowlist") and 1 not in item["classAllowlist"]: return False
+    if not item.get("sources"): return False
     if any("pvp" in s or s.get("drop",{}).get("difficulty") == 2 for s in item.get("sources",[])): return False
     scaling=item.get("scalingOptions",{}).get("0",{})
     return 50 <= scaling.get("ilvl",0) <= 70 and item.get("weaponSpeed",0) > 0 and scaling.get("weaponDamageMax",0) > 0
@@ -17,7 +18,7 @@ def weapon_dps(item):
 wanted=[]
 for kind in (9,2):
     ranked=sorted([item for item in db["items"] if eligible(item,kind)],key=lambda i:(-weapon_dps(i),i["id"]))
-    if len(ranked) < 3: raise ValueError(f"Not enough current candidates of weapon type {kind}")
+    if not ranked: raise ValueError(f"No sourced current candidates of weapon type {kind}")
     chosen=ranked[:3]
     fast=sorted([item for item in ranked if weapon_dps(item) >= weapon_dps(ranked[0])*0.8 and item["id"] not in [v["id"] for v in chosen]],key=lambda i:(i["weaponSpeed"],-weapon_dps(i),i["id"]))
     if fast: chosen.append(fast[0])

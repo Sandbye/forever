@@ -14,9 +14,7 @@ selected = []
 for category in ("sword/sword","sword/dagger","dagger/sword","dagger/dagger"):
     candidate = next((pair for pair, info in ranked if info["category"] == category),None)
     if candidate is not None and candidate not in selected: selected.append(candidate)
-for pair,_ in ranked:
-    if len(selected) >= 6: break
-    if pair not in selected: selected.append(pair)
+
 reference = (22384,12798)
 if reference not in selected: selected.append(reference)
 cases = []
